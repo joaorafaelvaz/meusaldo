@@ -34,11 +34,11 @@ echo "🔄 Restarting services via PM2..."
 # This requires PM2 to be installed globally on the VPS (npm install -g pm2)
 pm2 startOrRestart ecosystem.config.js --env production
 
-echo "🌐 Updating Nginx configuration..."
-sudo cp meusaldo.nginx.conf /etc/nginx/sites-available/meusaldo
-sudo ln -sf /etc/nginx/sites-available/meusaldo /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+# echo "🌐 Updating Nginx configuration..."
+# sudo cp meusaldo.nginx.conf /etc/nginx/sites-available/meusaldo
+# sudo ln -sf /etc/nginx/sites-available/meusaldo /etc/nginx/sites-enabled/
+# sudo nginx -t
+# sudo systemctl reload nginx
 
 echo "✅ Deploy complete!"
 echo "➡️  Frontend running on http://127.0.0.1:3016"
