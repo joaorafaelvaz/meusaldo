@@ -16,8 +16,9 @@ cd ..
 
 echo "🐍 Setting up Backend (FastAPI)..."
 cd backend
-if [ ! -d "venv" ]; then
+if [ ! -f "venv/bin/activate" ]; then
     echo "Creating python virtual environment..."
+    rm -rf venv
     python3 -m venv venv
 fi
 source venv/bin/activate
