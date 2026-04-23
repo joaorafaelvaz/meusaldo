@@ -6,7 +6,7 @@ set -e
 echo "🚀 Deploying Meusaldo MVP..."
 
 echo "📥 Pulling latest code from git..."
-# git pull origin main
+git pull origin main
 
 echo "📦 Building Frontend (Next.js)..."
 cd frontend
@@ -22,10 +22,12 @@ if [ ! -d "venv" ]; then
 fi
 source venv/bin/activate
 pip install -r requirements.txt
-# Run alembic migrations here in the future
-# alembic upgrade head
-deactivate
 cd ..
+
+echo "🗄️ Running Database Migrations..."
+export PYTHONPATH=.
+alembic -c backend/alembic.ini upgrade head
+deactivate
 
 echo "🔄 Restarting services via PM2..."
 # This requires PM2 to be installed globally on the VPS (npm install -g pm2)
