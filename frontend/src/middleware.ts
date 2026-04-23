@@ -15,13 +15,16 @@ export function middleware(req: NextRequest) {
 
   try {
     const authValue = basicAuth.split(' ')[1]
-    const [user, pwd] = atob(authValue).split(':')
+    const decodedStr = atob(authValue)
+    const delimiterIndex = decodedStr.indexOf(':')
+    const user = decodedStr.substring(0, delimiterIndex)
+    const pwd = decodedStr.substring(delimiterIndex + 1)
 
-    // Read from env vars, fallback to default for MVP
-    const validUser = process.env.BASIC_AUTH_USER || 'admin'
-    const validPwd = process.env.BASIC_AUTH_PASSWORD || 'senha123'
+    // Read from env vars, fallback to default for MVP. Added trim() to prevent invisible characters (\r) from breaking auth
+    const validUser = (process.env.BASIC_AUTH_USER || 'admin').trim()
+    const validPwd = (process.env.BASIC_AUTH_PASSWORD || 'senha123').trim()
 
-    if (user === validUser && pwd === validPwd) {
+    if (user.trim() === validUser && pwd.trim() === validPwd) {
       return NextResponse.next()
     }
   } catch (error) {
