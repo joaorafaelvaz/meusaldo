@@ -9,3 +9,4 @@ litellm
 python-dotenv
 sqladmin
 itsdangerous
+requests

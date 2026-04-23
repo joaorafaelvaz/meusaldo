@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import json
 import os
+import requests
 import litellm
 from pydantic import BaseModel, Field
 from sqladmin import Admin, ModelView
@@ -184,12 +185,11 @@ def process_waha_message(payload: dict, db: Session):
         waha_url = os.getenv("WAHA_API_URL", "http://localhost:3000")
         waha_session = os.getenv("WAHA_SESSION", "default")
         
-        # import requests
-        # requests.post(f"{waha_url}/api/sendText", json={
-        #     "session": waha_session,
-        #     "chatId": message_data.get("from"),
-        #     "text": reply_text
-        # })
+        requests.post(f"{waha_url}/api/sendText", json={
+            "session": waha_session,
+            "chatId": message_data.get("from"),
+            "text": reply_text
+        })
         print(f"Reply to {phone}: {reply_text}")
 
     except Exception as e:
