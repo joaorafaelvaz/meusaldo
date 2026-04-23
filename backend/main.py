@@ -6,6 +6,8 @@ import os
 import litellm
 from pydantic import BaseModel, Field
 from sqladmin import Admin, ModelView
+from sqladmin.authentication import AuthenticationBackend
+from starlette.requests import Request
 
 from backend.database import engine, Base, get_db
 from backend import models
@@ -23,17 +25,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Admin Authentication
+class AdminAuth(AuthenticationBackend):
+    async def login(self, request: Request) -> bool:
+        form = await request.form()
+        username, password = form["username"], form["password"]
+        
+        admin_user = os.getenv("ADMIN_USERNAME", "admin")
+        admin_pass = os.getenv("ADMIN_PASSWORD", "senha123")
+        
+        if username == admin_user and password == admin_pass:
+            request.session.update({"token": "admin_session"})
+            return True
+        return False
+
+    async def logout(self, request: Request) -> bool:
+        request.session.clear()
+        return True
+
+    async def authenticate(self, request: Request) -> bool:
+        token = request.session.get("token")
+        return token == "admin_session"
+
+authentication_backend = AdminAuth(secret_key=os.getenv("SECRET_KEY", "meusaldo-super-secret-key-123"))
+
 # Admin Panel Setup
 class UserAdmin(ModelView, model=models.User):
+    name = "Usuário"
+    name_plural = "Usuários"
+    icon = "fa-solid fa-user"
     column_list = [models.User.id, models.User.name, models.User.phone_number]
+    column_searchable_list = [models.User.name, models.User.phone_number]
 
 class WorkspaceAdmin(ModelView, model=models.Workspace):
+    name = "Workspace"
+    name_plural = "Workspaces"
+    icon = "fa-solid fa-building"
     column_list = [models.Workspace.id, models.Workspace.name]
+    column_searchable_list = [models.Workspace.name]
 
 class ExpenseAdmin(ModelView, model=models.Expense):
+    name = "Despesa"
+    name_plural = "Despesas"
+    icon = "fa-solid fa-money-bill-wave"
     column_list = [models.Expense.id, models.Expense.amount, models.Expense.category, models.Expense.date]
+    column_searchable_list = [models.Expense.category, models.Expense.description]
+    column_sortable_list = [models.Expense.date, models.Expense.amount]
 
-admin = Admin(app, engine, base_url="/api/admin")
+admin = Admin(app, engine, base_url="/api/admin", authentication_backend=authentication_backend)
 admin.add_view(UserAdmin)
 admin.add_view(WorkspaceAdmin)
 admin.add_view(ExpenseAdmin)
