@@ -217,5 +217,7 @@ async def waha_webhook(request: Request, background_tasks: BackgroundTasks, db: 
     Must return 200 OK immediately to acknowledge receipt.
     """
     payload = await request.json()
+    print("--- INCOMING WEBHOOK RECEIVED ---")
+    print(json.dumps(payload, indent=2))
     background_tasks.add_task(process_waha_message, payload, db)
     return {"status": "ok"}

@@ -63,9 +63,11 @@ export default async function Dashboard() {
             <Button size="sm" variant="outline" className="border-white/10 bg-white/5 hover:bg-white/10 text-slate-200 transition-all duration-300">
               Convidar Parceiro
             </Button>
-            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:scale-105">
-              Conectar WhatsApp
-            </Button>
+            <a href="http://meusaldo.linkwise.digital:3000/dashboard" target="_blank" rel="noopener noreferrer">
+              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:scale-105">
+                Conectar WhatsApp
+              </Button>
+            </a>
           </div>
         </header>
 
