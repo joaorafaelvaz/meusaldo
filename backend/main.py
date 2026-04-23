@@ -100,7 +100,7 @@ def get_expenses(db: Session = Depends(get_db)):
     return result
 
 class ExpenseExtraction(BaseModel):
-    is_expense: bool = Field(description="True if the message is reporting an expense")
+    is_expense: bool = Field(default=True, description="True if the message is reporting an expense")
     amount: float = Field(default=0.0, description="The extracted monetary amount")
     category: str = Field(default="", description="The category of the expense")
     description: str = Field(default="", description="A short description of the expense")
