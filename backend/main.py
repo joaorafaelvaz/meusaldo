@@ -141,6 +141,7 @@ def process_waha_message(payload: dict, db: Session):
 
         # Parse with LiteLLM
         model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo") # Default to OpenAI for better JSON parsing out of the box
+        api_base = os.getenv("LLM_API_BASE") # Useful for Ollama or local models
         
         system_prompt = (
             "You are a financial assistant for a Brazilian user. "
@@ -151,6 +152,7 @@ def process_waha_message(payload: dict, db: Session):
 
         response = litellm.completion(
             model=model_name,
+            api_base=api_base,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
