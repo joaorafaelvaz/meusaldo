@@ -33,7 +33,7 @@ class WorkspaceAdmin(ModelView, model=models.Workspace):
 class ExpenseAdmin(ModelView, model=models.Expense):
     column_list = [models.Expense.id, models.Expense.amount, models.Expense.category, models.Expense.date]
 
-admin = Admin(app, engine, base_url="/admin")
+admin = Admin(app, engine, base_url="/api/admin")
 admin.add_view(UserAdmin)
 admin.add_view(WorkspaceAdmin)
 admin.add_view(ExpenseAdmin)
