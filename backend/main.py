@@ -161,7 +161,14 @@ def process_waha_message(payload: dict, db: Session):
         )
         
         content = response.choices[0].message.content
-        parsed = json.loads(content)
+        print(f"Raw LLM response: {content}") # Debugging line
+        
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            # Sometimes models return markdown blocks like ```json ... ```
+            clean_content = content.replace("```json", "").replace("```", "").strip()
+            parsed = json.loads(clean_content)
         
         ext = ExpenseExtraction(**parsed)
 
