@@ -7,3 +7,5 @@ pydantic>=2.9.0
 pydantic-settings
 litellm
 python-dotenv
+sqladmin
+itsdangerous

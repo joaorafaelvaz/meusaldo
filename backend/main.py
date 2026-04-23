@@ -5,6 +5,7 @@ import json
 import os
 import litellm
 from pydantic import BaseModel, Field
+from sqladmin import Admin, ModelView
 
 from backend.database import engine, Base, get_db
 from backend import models
@@ -21,6 +22,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Admin Panel Setup
+class UserAdmin(ModelView, model=models.User):
+    column_list = [models.User.id, models.User.name, models.User.phone_number]
+
+class WorkspaceAdmin(ModelView, model=models.Workspace):
+    column_list = [models.Workspace.id, models.Workspace.name]
+
+class ExpenseAdmin(ModelView, model=models.Expense):
+    column_list = [models.Expense.id, models.Expense.amount, models.Expense.category, models.Expense.date]
+
+admin = Admin(app, engine, base_url="/admin")
+admin.add_view(UserAdmin)
+admin.add_view(WorkspaceAdmin)
+admin.add_view(ExpenseAdmin)
 
 @app.get("/")
 def read_root():
