@@ -181,15 +181,27 @@ def process_waha_message(payload: dict, db: Session):
         else:
             reply_text = "Desculpe, não entendi. Você pode informar um gasto (ex: 'gastei 50 no ifood')?"
 
-        # Send reply back via Waha
         waha_url = os.getenv("WAHA_API_URL", "http://localhost:3000")
         waha_session = os.getenv("WAHA_SESSION", "default")
+        waha_api_key = os.getenv("WAHA_API_KEY")
         
-        requests.post(f"{waha_url}/api/sendText", json={
-            "session": waha_session,
-            "chatId": message_data.get("from"),
-            "text": reply_text
-        })
+        headers = {
+            "Content-Type": "application/json"
+        }
+        if waha_api_key:
+            # Most Waha setups use X-Api-Key or Authorization header for security
+            headers["X-Api-Key"] = waha_api_key
+            headers["Authorization"] = f"Bearer {waha_api_key}" # Adding both just in case it depends on the proxy
+
+        requests.post(
+            f"{waha_url}/api/sendText", 
+            json={
+                "session": waha_session,
+                "chatId": message_data.get("from"),
+                "text": reply_text
+            },
+            headers=headers
+        )
         print(f"Reply to {phone}: {reply_text}")
 
     except Exception as e:
