@@ -71,6 +71,7 @@ class ExpenseAdmin(ModelView, model=models.Expense):
     column_list = [models.Expense.id, models.Expense.amount, models.Expense.category, models.Expense.date]
     column_searchable_list = [models.Expense.category, models.Expense.description]
     column_sortable_list = [models.Expense.date, models.Expense.amount]
+    form_columns = [models.Expense.workspace, models.Expense.amount, models.Expense.category, models.Expense.description]
 
 admin = Admin(app, engine, base_url="/api/admin", authentication_backend=authentication_backend)
 admin.add_view(UserAdmin)

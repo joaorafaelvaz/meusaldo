@@ -13,6 +13,9 @@ class User(Base):
     
     workspaces = relationship("WorkspaceMember", back_populates="user")
 
+    def __str__(self):
+        return f"{self.name} ({self.phone_number})"
+
 class Workspace(Base):
     __tablename__ = "workspaces"
     
@@ -22,6 +25,9 @@ class Workspace(Base):
     
     members = relationship("WorkspaceMember", back_populates="workspace")
     expenses = relationship("Expense", back_populates="workspace")
+
+    def __str__(self):
+        return self.name or f"Workspace #{self.id}"
 
 class WorkspaceMember(Base):
     __tablename__ = "workspace_members"
