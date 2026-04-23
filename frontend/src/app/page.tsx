@@ -71,10 +71,10 @@ export default async function Dashboard() {
           </div>
         </header>
 
-        <main className="grid flex-1 items-start gap-6 p-4 sm:px-6 sm:py-0 md:gap-8 lg:grid-cols-3 xl:grid-cols-3">
+        <main className="grid flex-1 items-start gap-6 p-4 sm:px-6 sm:py-0 md:gap-8 lg:grid-cols-3 xl:grid-cols-3 animate-in fade-in duration-1000">
           <div className="grid auto-rows-max items-start gap-6 md:gap-8 lg:col-span-2">
             <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-              <Card className="sm:col-span-2 bg-white/5 border-white/10 backdrop-blur-lg shadow-2xl transition-all duration-500 hover:border-white/20 hover:bg-white/[0.07]">
+              <Card className="sm:col-span-2 bg-white/5 border-white/10 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(79,70,229,0.15)] hover:border-indigo-500/30 hover:bg-white/[0.08] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100 fill-mode-both">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-slate-200 font-medium tracking-wide text-sm uppercase">Gastos da Semana</CardTitle>
                   <CardDescription className="max-w-lg text-slate-400 text-xs">
@@ -88,13 +88,13 @@ export default async function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="bg-white/5 border-white/10 backdrop-blur-lg transition-all duration-500 hover:border-white/20">
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(79,70,229,0.15)] hover:border-indigo-500/30 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 fill-mode-both">
                 <CardHeader className="pb-2">
                   <CardDescription className="text-slate-400">Você</CardDescription>
                   <CardTitle className="text-2xl font-bold text-white">R$ 270,50</CardTitle>
                 </CardHeader>
               </Card>
-              <Card className="bg-white/5 border-white/10 backdrop-blur-lg transition-all duration-500 hover:border-white/20">
+              <Card className="bg-white/5 border-white/10 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(79,70,229,0.15)] hover:border-indigo-500/30 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both">
                 <CardHeader className="pb-2">
                   <CardDescription className="text-slate-400">Parceiro</CardDescription>
                   <CardTitle className="text-2xl font-bold text-white">R$ 90,90</CardTitle>
@@ -102,7 +102,7 @@ export default async function Dashboard() {
               </Card>
             </div>
             
-            <Card className="bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden shadow-2xl">
+            <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)] animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-500 fill-mode-both">
               <CardHeader className="px-7 border-b border-white/5 bg-white/[0.02]">
                 <CardTitle className="text-slate-200">Últimos Gastos</CardTitle>
                 <CardDescription className="text-slate-400">Histórico de despesas sincronizado.</CardDescription>
@@ -147,7 +147,7 @@ export default async function Dashboard() {
           </div>
           
           <div className="grid gap-6">
-            <Card className="bg-gradient-to-br from-indigo-900/40 to-violet-900/40 border-indigo-500/20 backdrop-blur-lg shadow-2xl relative overflow-hidden group">
+            <Card className="bg-gradient-to-br from-indigo-900/40 to-violet-900/40 border-indigo-500/20 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] relative overflow-hidden group transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(79,70,229,0.2)] hover:border-indigo-500/40 animate-in fade-in slide-in-from-right-8 duration-1000 delay-700 fill-mode-both">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="relative z-10">
                 <CardTitle className="text-white flex items-center gap-2">
