@@ -13,8 +13,31 @@ from starlette.requests import Request
 
 from typing import Optional
 from datetime import datetime
+import calendar
 
 from backend.database import engine, Base, get_db
+
+def add_months(d: datetime, months: int) -> datetime:
+    month = d.month - 1 + months
+    year = d.year + month // 12
+    month = month % 12 + 1
+    return d.replace(year=year, month=month, day=1)
+
+def calculate_invoice_date(purchase_date: datetime, closing_day: int, due_day: int) -> datetime:
+    cycle_date = purchase_date
+    if purchase_date.day >= closing_day:
+        cycle_date = add_months(cycle_date, 1)
+        
+    if due_day < closing_day:
+        due_date_base = add_months(cycle_date, 1)
+    else:
+        due_date_base = cycle_date
+        
+    max_day = calendar.monthrange(due_date_base.year, due_date_base.month)[1]
+    actual_due_day = min(due_day, max_day)
+    
+    return datetime(due_date_base.year, due_date_base.month, actual_due_day, tzinfo=purchase_date.tzinfo)
+
 from backend import models
 
 # Create tables for MVP (in production use Alembic)
@@ -69,18 +92,26 @@ class WorkspaceAdmin(ModelView, model=models.Workspace):
     column_list = [models.Workspace.id, models.Workspace.name]
     column_searchable_list = [models.Workspace.name]
 
+class CreditCardAdmin(ModelView, model=models.CreditCard):
+    name = "Cartão de Crédito"
+    name_plural = "Cartões de Crédito"
+    icon = "fa-solid fa-credit-card"
+    column_list = [models.CreditCard.id, models.CreditCard.name, models.CreditCard.closing_day, models.CreditCard.due_day]
+    form_columns = [models.CreditCard.workspace, models.CreditCard.name, models.CreditCard.closing_day, models.CreditCard.due_day]
+
 class ExpenseAdmin(ModelView, model=models.Expense):
     name = "Despesa"
     name_plural = "Despesas"
     icon = "fa-solid fa-money-bill-wave"
-    column_list = [models.Expense.id, models.Expense.amount, models.Expense.category, models.Expense.date]
+    column_list = [models.Expense.id, models.Expense.amount, models.Expense.category, models.Expense.date, models.Expense.invoice_date]
     column_searchable_list = [models.Expense.category, models.Expense.description]
-    column_sortable_list = [models.Expense.date, models.Expense.amount]
-    form_columns = [models.Expense.workspace, models.Expense.amount, models.Expense.category, models.Expense.description]
+    column_sortable_list = [models.Expense.date, models.Expense.amount, models.Expense.invoice_date]
+    form_columns = [models.Expense.workspace, models.Expense.credit_card, models.Expense.amount, models.Expense.category, models.Expense.description, models.Expense.date, models.Expense.invoice_date]
 
 admin = Admin(app, engine, base_url="/api/admin", authentication_backend=authentication_backend)
 admin.add_view(UserAdmin)
 admin.add_view(WorkspaceAdmin)
+admin.add_view(CreditCardAdmin)
 admin.add_view(ExpenseAdmin)
 
 @app.get("/")
@@ -109,6 +140,7 @@ class ExpenseData(BaseModel):
     description: Optional[str] = None
     card_name: Optional[str] = None
     cardholder: Optional[str] = None
+    installments: int = Field(default=1)
 
 class BillData(BaseModel):
     due_date: Optional[str] = None
@@ -187,7 +219,8 @@ def process_waha_message(payload: dict, db: Session):
                 "category": "String in Portuguese (e.g., Alimentação, Transporte, Lazer) or null",
                 "description": "String or null",
                 "card_name": "String or null",
-                "cardholder": "String or null"
+                "cardholder": "String or null",
+                "installments": "Integer (default 1, e.g., 4 if 'em 4x')"
             },
             "bill_data": {
                 "due_date": "DD/MM/YYYY or null",
@@ -213,7 +246,8 @@ def process_waha_message(payload: dict, db: Session):
               - "description": The establishment name (e.g., "CONTABILIZEI TECNOLOGIA L" or "MERCADOLIVRE*MERCADOLIVRE").
               - "card_name": Extract card name and final digits (e.g., "LATAM PASS VS INFINI" or "LATAM PASS VS INFINI final 6631").
               - "cardholder": If names like "GIORGIA", "LUCIA", or "RENATO" appear, use them. Otherwise, default to "João".
-              - "reply": Create a sarcastic and funny confirmation including the cardholder name and available limit (if provided in the message).
+              - "installments": Extract integer if the purchase was split (e.g., "em 4x", "parcelado em 3"). Default to 1.
+              - "reply": Create a sarcastic and funny confirmation including the cardholder name, available limit, and number of installments.
         """
 
         prompt_with_date = system_prompt.replace("{CURRENT_DATE}", datetime.now().strftime("%d/%m/%Y"))
@@ -248,13 +282,55 @@ def process_waha_message(payload: dict, db: Session):
                 if ext.expense_data.cardholder:
                     desc += f" (Cartão de: {ext.expense_data.cardholder})"
 
-                expense = models.Expense(
-                    workspace_id=ws_member.workspace_id,
-                    amount=ext.expense_data.amount,
-                    category=ext.expense_data.category or "Geral",
-                    description=desc
-                )
-                db.add(expense)
+                base_card_id = None
+                base_invoice_date = None
+                purchase_date = datetime.now()
+                
+                if ext.expense_data.card_name:
+                    card_token = ext.expense_data.card_name.split()[0].lower()
+                    cards = db.query(models.CreditCard).filter(models.CreditCard.workspace_id == ws_member.workspace_id).all()
+                    for c in cards:
+                        if c.name.lower() in ext.expense_data.card_name.lower() or card_token in c.name.lower():
+                            base_card_id = c.id
+                            base_invoice_date = calculate_invoice_date(purchase_date, c.closing_day, c.due_day)
+                            break
+
+                installments = ext.expense_data.installments
+                if installments < 1:
+                    installments = 1
+
+                total_amount = ext.expense_data.amount
+                base_installment_amount = round(total_amount / installments, 2)
+                remainder = round(total_amount - (base_installment_amount * installments), 2)
+
+                for i in range(1, installments + 1):
+                    current_desc = desc
+                    if installments > 1:
+                        current_desc += f" (Parcela {i}/{installments})"
+                    
+                    current_amount = base_installment_amount
+                    if i == installments:
+                        current_amount = round(current_amount + remainder, 2)
+
+                    current_invoice_date = None
+                    if base_invoice_date:
+                        current_invoice_date = add_months(base_invoice_date, i - 1)
+                    
+                    current_date = purchase_date
+                    if not base_card_id and i > 1:
+                        current_date = add_months(purchase_date, i - 1)
+
+                    expense = models.Expense(
+                        workspace_id=ws_member.workspace_id,
+                        amount=current_amount,
+                        category=ext.expense_data.category or "Geral",
+                        description=current_desc,
+                        credit_card_id=base_card_id,
+                        invoice_date=current_invoice_date,
+                        date=current_date
+                    )
+                    db.add(expense)
+                
                 db.commit()
 
         waha_url = os.getenv("WAHA_API_URL", "http://localhost:3000")

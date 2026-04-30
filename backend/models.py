@@ -25,6 +25,7 @@ class Workspace(Base):
     
     members = relationship("WorkspaceMember", back_populates="workspace")
     expenses = relationship("Expense", back_populates="workspace")
+    credit_cards = relationship("CreditCard", back_populates="workspace")
 
     def __str__(self):
         return self.name or f"Workspace #{self.id}"
@@ -39,6 +40,21 @@ class WorkspaceMember(Base):
     user = relationship("User", back_populates="workspaces")
     workspace = relationship("Workspace", back_populates="members")
 
+class CreditCard(Base):
+    __tablename__ = "credit_cards"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"))
+    name = Column(String, index=True)
+    closing_day = Column(Integer, nullable=False)
+    due_day = Column(Integer, nullable=False)
+    
+    workspace = relationship("Workspace", back_populates="credit_cards")
+    expenses = relationship("Expense", back_populates="credit_card")
+    
+    def __str__(self):
+        return f"{self.name} (Fechamento: {self.closing_day})"
+
 class Expense(Base):
     __tablename__ = "expenses"
     
@@ -49,4 +65,8 @@ class Expense(Base):
     description = Column(String, nullable=True)
     date = Column(DateTime(timezone=True), default=func.now())
     
+    credit_card_id = Column(Integer, ForeignKey("credit_cards.id"), nullable=True)
+    invoice_date = Column(DateTime(timezone=True), nullable=True)
+    
     workspace = relationship("Workspace", back_populates="expenses")
+    credit_card = relationship("CreditCard", back_populates="expenses")
