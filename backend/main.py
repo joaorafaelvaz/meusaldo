@@ -184,7 +184,7 @@ def process_waha_message(payload: dict, db: Session):
             "reply": "Your spoken response in PT-BR with your sarcastic and friendly tone. Use this field to interact, confirm actions, or ask for missing information.",
             "expense_data": {
                 "amount": 0.0,
-                "category": "String (e.g., Food, Transport, Leisure) or null",
+                "category": "String in Portuguese (e.g., Alimentação, Transporte, Lazer) or null",
                 "description": "String or null",
                 "card_name": "String or null",
                 "cardholder": "String or null"
