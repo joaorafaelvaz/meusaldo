@@ -11,6 +11,9 @@ from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 
+from typing import Optional
+from datetime import datetime
+
 from backend.database import engine, Base, get_db
 from backend import models
 
@@ -100,13 +103,23 @@ def get_expenses(db: Session = Depends(get_db)):
         })
     return result
 
+class ExpenseData(BaseModel):
+    amount: Optional[float] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    card_name: Optional[str] = None
+    cardholder: Optional[str] = None
+
+class BillData(BaseModel):
+    due_date: Optional[str] = None
+    payee: Optional[str] = None
+    amount: Optional[float] = None
+
 class ExpenseExtraction(BaseModel):
-    is_expense: bool = Field(default=True, description="True if the message is reporting an expense")
-    amount: float = Field(default=0.0, description="The extracted monetary amount")
-    category: str = Field(default="", description="The category of the expense")
-    description: str = Field(default="", description="A short description of the expense")
-    is_question: bool = Field(default=False, description="True if asking a question")
-    answer: str = Field(default="", description="The answer to the user's question")
+    intent: str = Field(default="chat")
+    reply: str = Field(default="")
+    expense_data: Optional[ExpenseData] = None
+    bill_data: Optional[BillData] = None
 
 def process_waha_message(payload: dict, db: Session):
     """
@@ -153,7 +166,7 @@ def process_waha_message(payload: dict, db: Session):
  #           "Do NOT invent new keys like 'expense_amount', strictly use 'amount'."
  #       )
 
-        system_prompt = """
+        system_prompt = f"""
         You are a highly efficient personal financial assistant. You have a sarcastic, humorous, and friendly personality. While your instructions are in English, you MUST ALWAYS generate the spoken response for the user in Brazilian Portuguese (PT-BR).
 
             YOUR MISSIONS:
@@ -169,15 +182,17 @@ def process_waha_message(payload: dict, db: Session):
             {
             "intent": "expense | query | reminder | clarification | chat",
             "reply": "Your spoken response in PT-BR with your sarcastic and friendly tone. Use this field to interact, confirm actions, or ask for missing information.",
-            "expense_data": 
-            "amount": 0.0,
-            "category": "String (e.g., Food, Transport, Leisure) or null",
-            "description": "String or null"
-  
-            "bill_data": 
-            "due_date": "DD/MM/YYYY or null",
-            "payee": "String (name of the bill/recipient) or null",
-            "amount": 0.0
+            "expense_data": {
+                "amount": 0.0,
+                "category": "String (e.g., Food, Transport, Leisure) or null",
+                "description": "String or null",
+                "card_name": "String or null",
+                "cardholder": "String or null"
+            },
+            "bill_data": {
+                "due_date": "DD/MM/YYYY or null",
+                "payee": "String (name of the bill/recipient) or null",
+                "amount": 0.0
             }
             }
 
@@ -189,7 +204,16 @@ def process_waha_message(payload: dict, db: Session):
             - Use "clarification" if the user attempts to log an expense or bill but misses the amount or description.
             - Use "chat" for general conversation unrelated to specific financial actions.
             - The "amount" fields must be strictly numeric (float). NEVER invent new keys like 'expense_amount', strictly use 'amount'. If no amount is given, use null.
-            - Time reference: Today is {CURRENT_DATE}. Translate relative terms like "tomorrow" or "next Friday" into the explicit DD/MM/YYYY format for "due_date".
+            - Time reference: Today is {datetime.now().strftime('%d/%m/%Y')}. Translate relative terms like "tomorrow" or "next Friday" into the explicit DD/MM/YYYY format for "due_date".
+            
+            - BANK NOTIFICATIONS (PUSH/SMS): 
+              If the user pastes a bank notification like "Compra aprovada no LATAM PASS...":
+              - "intent": MUST be "expense".
+              - "amount": Extract numeric value (e.g., "RS 369,00" -> 369.0).
+              - "description": The establishment name (e.g., "CONTABILIZEI TECNOLOGIA L" or "MERCADOLIVRE*MERCADOLIVRE").
+              - "card_name": Extract card name and final digits (e.g., "LATAM PASS VS INFINI" or "LATAM PASS VS INFINI final 6631").
+              - "cardholder": If names like "GIORGIA", "LUCIA", or "RENATO" appear, use them. Otherwise, default to "João".
+              - "reply": Create a sarcastic and funny confirmation including the cardholder name and available limit (if provided in the message).
         """
 
         response = litellm.completion(
@@ -214,23 +238,22 @@ def process_waha_message(payload: dict, db: Session):
         
         ext = ExpenseExtraction(**parsed)
 
-        reply_text = ""
-        if ext.is_expense and ext.amount > 0:
+        reply_text = ext.reply or "Desculpe, ocorreu um erro interno e não consegui processar."
+        if ext.intent == "expense" and ext.expense_data and ext.expense_data.amount is not None:
             ws_member = db.query(models.WorkspaceMember).filter(models.WorkspaceMember.user_id == user.id).first()
             if ws_member:
+                desc = ext.expense_data.description or "Sem descrição"
+                if ext.expense_data.cardholder:
+                    desc += f" (Cartão de: {ext.expense_data.cardholder})"
+
                 expense = models.Expense(
                     workspace_id=ws_member.workspace_id,
-                    amount=ext.amount,
-                    category=ext.category,
-                    description=ext.description
+                    amount=ext.expense_data.amount,
+                    category=ext.expense_data.category or "Geral",
+                    description=desc
                 )
                 db.add(expense)
                 db.commit()
-                reply_text = f"✅ Gasto de R$ {ext.amount:.2f} em {ext.category} registrado com sucesso!"
-        elif ext.is_question and ext.answer:
-            reply_text = ext.answer
-        else:
-            reply_text = "Desculpe, não entendi. Você pode informar um gasto (ex: 'gastei 50 no ifood')?"
 
         waha_url = os.getenv("WAHA_API_URL", "http://localhost:3000")
         waha_session = os.getenv("WAHA_SESSION", "default")
