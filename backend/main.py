@@ -166,7 +166,7 @@ def process_waha_message(payload: dict, db: Session):
  #           "Do NOT invent new keys like 'expense_amount', strictly use 'amount'."
  #       )
 
-        system_prompt = f"""
+        system_prompt = """
         You are a highly efficient personal financial assistant. You have a sarcastic, humorous, and friendly personality. While your instructions are in English, you MUST ALWAYS generate the spoken response for the user in Brazilian Portuguese (PT-BR).
 
             YOUR MISSIONS:
@@ -204,7 +204,7 @@ def process_waha_message(payload: dict, db: Session):
             - Use "clarification" if the user attempts to log an expense or bill but misses the amount or description.
             - Use "chat" for general conversation unrelated to specific financial actions.
             - The "amount" fields must be strictly numeric (float). NEVER invent new keys like 'expense_amount', strictly use 'amount'. If no amount is given, use null.
-            - Time reference: Today is {datetime.now().strftime('%d/%m/%Y')}. Translate relative terms like "tomorrow" or "next Friday" into the explicit DD/MM/YYYY format for "due_date".
+            - Time reference: Today is {CURRENT_DATE}. Translate relative terms like "tomorrow" or "next Friday" into the explicit DD/MM/YYYY format for "due_date".
             
             - BANK NOTIFICATIONS (PUSH/SMS): 
               If the user pastes a bank notification like "Compra aprovada no LATAM PASS...":
@@ -216,11 +216,13 @@ def process_waha_message(payload: dict, db: Session):
               - "reply": Create a sarcastic and funny confirmation including the cardholder name and available limit (if provided in the message).
         """
 
+        prompt_with_date = system_prompt.replace("{CURRENT_DATE}", datetime.now().strftime("%d/%m/%Y"))
+
         response = litellm.completion(
             model=model_name,
             api_base=api_base,
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": prompt_with_date},
                 {"role": "user", "content": text}
             ],
             response_format={"type": "json_object"} # Instruct to return JSON
