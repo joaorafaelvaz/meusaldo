@@ -385,17 +385,17 @@ def process_waha_message(payload: dict, db: Session):
                     models.Expense.date >= thirty_days_ago
                 ).all()
                 
-                context_str = "Despesas recentes (últimos 30 dias):\\n"
+                context_str = "Despesas recentes (últimos 30 dias):\n"
                 if not recent_expenses:
-                    context_str += "Nenhuma despesa registrada nos últimos 30 dias.\\n"
+                    context_str += "Nenhuma despesa registrada nos últimos 30 dias.\n"
                 else:
                     for exp in recent_expenses:
                         cat = exp.category or "Geral"
                         desc = exp.description or "Sem descrição"
                         date_str = exp.date.strftime("%d/%m/%Y") if exp.date else "Desconhecido"
-                        context_str += f"- {date_str} | {cat} | R$ {exp.amount:.2f} | {desc}\\n"
+                        context_str += f"- {date_str} | {cat} | R$ {exp.amount:.2f} | {desc}\n"
                 
-                query_prompt = f\"\"\"
+                query_prompt = f"""
                 You are a highly efficient personal financial assistant with a sarcastic, humorous, and friendly personality.
                 The user asked a question about their finances: "{text}"
                 
@@ -405,7 +405,7 @@ def process_waha_message(payload: dict, db: Session):
                 Answer the user's question accurately based ONLY on the data above. Do not invent expenses.
                 If they ask about "this week", calculate it based on the dates provided (today is {datetime.now().strftime("%d/%m/%Y")}).
                 Reply in Brazilian Portuguese (PT-BR). Do NOT output JSON. Output ONLY the plain text response to send via WhatsApp.
-                \"\"\"
+                """
                 
                 query_response = litellm.completion(
                     model=model_name,
