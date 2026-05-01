@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from datetime import datetime
 from backend.database import Base
 
 class User(Base):
@@ -65,7 +66,7 @@ class Expense(Base):
     amount = Column(Float, nullable=False)
     category = Column(String, index=True)
     description = Column(String, nullable=True)
-    date = Column(DateTime(timezone=True), default=func.now())
+    date = Column(DateTime(timezone=True), default=datetime.now)
     
     credit_card_id = Column(Integer, ForeignKey("credit_cards.id"), nullable=True)
     invoice_date = Column(DateTime(timezone=True), nullable=True)
