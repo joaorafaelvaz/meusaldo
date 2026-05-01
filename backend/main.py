@@ -12,7 +12,7 @@ from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import calendar
 
 from backend.database import engine, Base, get_db
@@ -317,8 +317,9 @@ def process_waha_message(payload: dict, db: Session):
         ext = ExpenseExtraction(**parsed)
 
         reply_text = ext.reply or "Desculpe, ocorreu um erro interno e não consegui processar."
+        ws_member = db.query(models.WorkspaceMember).filter(models.WorkspaceMember.user_id == user.id).first()
+        
         if ext.intent == "expense" and ext.expense_data and ext.expense_data.amount is not None:
-            ws_member = db.query(models.WorkspaceMember).filter(models.WorkspaceMember.user_id == user.id).first()
             if ws_member:
                 desc = ext.expense_data.description or "Sem descrição"
                 if ext.expense_data.cardholder:
@@ -375,6 +376,46 @@ def process_waha_message(payload: dict, db: Session):
                     db.add(expense)
                 
                 db.commit()
+
+        elif ext.intent == "query":
+            if ws_member:
+                thirty_days_ago = datetime.now() - timedelta(days=30)
+                recent_expenses = db.query(models.Expense).filter(
+                    models.Expense.workspace_id == ws_member.workspace_id,
+                    models.Expense.date >= thirty_days_ago
+                ).all()
+                
+                context_str = "Despesas recentes (últimos 30 dias):\\n"
+                if not recent_expenses:
+                    context_str += "Nenhuma despesa registrada nos últimos 30 dias.\\n"
+                else:
+                    for exp in recent_expenses:
+                        cat = exp.category or "Geral"
+                        desc = exp.description or "Sem descrição"
+                        date_str = exp.date.strftime("%d/%m/%Y") if exp.date else "Desconhecido"
+                        context_str += f"- {date_str} | {cat} | R$ {exp.amount:.2f} | {desc}\\n"
+                
+                query_prompt = f\"\"\"
+                You are a highly efficient personal financial assistant with a sarcastic, humorous, and friendly personality.
+                The user asked a question about their finances: "{text}"
+                
+                Here is their actual spending data for the last 30 days:
+                {context_str}
+                
+                Answer the user's question accurately based ONLY on the data above. Do not invent expenses.
+                If they ask about "this week", calculate it based on the dates provided (today is {datetime.now().strftime("%d/%m/%Y")}).
+                Reply in Brazilian Portuguese (PT-BR). Do NOT output JSON. Output ONLY the plain text response to send via WhatsApp.
+                \"\"\"
+                
+                query_response = litellm.completion(
+                    model=model_name,
+                    api_base=api_base,
+                    messages=[
+                        {"role": "system", "content": query_prompt}
+                    ]
+                )
+                
+                reply_text = query_response.choices[0].message.content.strip()
 
         waha_url = os.getenv("WAHA_API_URL", "http://localhost:3000")
         waha_session = os.getenv("WAHA_SESSION", "default")
