@@ -124,13 +124,23 @@ def get_expenses(db: Session = Depends(get_db)):
     expenses = db.query(models.Expense).order_by(models.Expense.date.desc()).limit(20).all()
     result = []
     for exp in expenses:
+        user_name = "Você"
+        if exp.user_id:
+            member = db.query(models.WorkspaceMember).filter_by(user_id=exp.user_id, workspace_id=exp.workspace_id).first()
+            if member and member.role == "partner":
+                user_name = "Parceiro"
+            elif member and member.role == "owner":
+                user_name = "Você"
+            else:
+                user_name = exp.user.name if exp.user else "Você"
+        
         result.append({
             "id": exp.id,
             "desc": exp.description or "Sem descrição",
             "category": exp.category,
             "amount": exp.amount,
             "date": exp.date.strftime("%d/%m/%Y") if exp.date else "",
-            "user": "Você" # Placeholder for MVP since auth is skipped
+            "user": user_name
         })
     return result
 
@@ -322,6 +332,7 @@ def process_waha_message(payload: dict, db: Session):
 
                     expense = models.Expense(
                         workspace_id=ws_member.workspace_id,
+                        user_id=user.id,
                         amount=current_amount,
                         category=ext.expense_data.category or "Geral",
                         description=current_desc,

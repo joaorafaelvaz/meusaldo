@@ -12,6 +12,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     workspaces = relationship("WorkspaceMember", back_populates="user")
+    expenses = relationship("Expense", back_populates="user")
 
     def __str__(self):
         return f"{self.name} ({self.phone_number})"
@@ -60,6 +61,7 @@ class Expense(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     workspace_id = Column(Integer, ForeignKey("workspaces.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     amount = Column(Float, nullable=False)
     category = Column(String, index=True)
     description = Column(String, nullable=True)
@@ -69,4 +71,5 @@ class Expense(Base):
     invoice_date = Column(DateTime(timezone=True), nullable=True)
     
     workspace = relationship("Workspace", back_populates="expenses")
+    user = relationship("User", back_populates="expenses")
     credit_card = relationship("CreditCard", back_populates="expenses")

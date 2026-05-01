@@ -42,6 +42,14 @@ export default async function Dashboard() {
   
   // Calculate total dynamically based on fetched expenses
   const totalAmount = expenses.reduce((acc, exp) => acc + exp.amount, 0);
+  
+  const voceAmount = expenses
+    .filter(exp => exp.user === "Você")
+    .reduce((acc, exp) => acc + exp.amount, 0);
+
+  const parceiroAmount = expenses
+    .filter(exp => exp.user === "Parceiro")
+    .reduce((acc, exp) => acc + exp.amount, 0);
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-black text-zinc-50 selection:bg-emerald-500/30 font-sans">
@@ -91,13 +99,13 @@ export default async function Dashboard() {
               <Card className="bg-zinc-950/40 border-white/5 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(16,185,129,0.1)] hover:border-emerald-500/20 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 fill-mode-both">
                 <CardHeader className="pb-2">
                   <CardDescription className="text-zinc-500">Você</CardDescription>
-                  <CardTitle className="text-2xl font-bold text-white">R$ 270,50</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-white">R$ {voceAmount.toFixed(2).replace('.', ',')}</CardTitle>
                 </CardHeader>
               </Card>
               <Card className="bg-zinc-950/40 border-white/5 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(16,185,129,0.1)] hover:border-emerald-500/20 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 fill-mode-both">
                 <CardHeader className="pb-2">
                   <CardDescription className="text-zinc-500">Parceiro</CardDescription>
-                  <CardTitle className="text-2xl font-bold text-white">R$ 90,90</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-white">R$ {parceiroAmount.toFixed(2).replace('.', ',')}</CardTitle>
                 </CardHeader>
               </Card>
             </div>
