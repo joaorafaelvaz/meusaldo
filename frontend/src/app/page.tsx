@@ -37,8 +37,29 @@ async function getExpenses(): Promise<Expense[]> {
   }
 }
 
+type DashboardData = {
+  categories: { name: string, value: number }[]
+  future: { month: string, amount: number }[]
+}
+
+async function getDashboardData(): Promise<DashboardData> {
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8015/api"
+    const res = await fetch(`${apiUrl}/dashboard`, { cache: "no-store" })
+    if (!res.ok) return { categories: [], future: [] }
+    return res.json()
+  } catch (e) {
+    console.error("Error fetching dashboard data:", e)
+    return { categories: [], future: [] }
+  }
+}
+
 export default async function Dashboard() {
   const expenses = await getExpenses();
+  const dashboardData = await getDashboardData();
+  
+  const maxCategoryAmount = Math.max(...dashboardData.categories.map(c => c.value), 1);
+  const maxFutureAmount = Math.max(...dashboardData.future.map(f => f.amount), 1);
   
   // Calculate total dynamically based on fetched expenses
   const totalAmount = expenses.reduce((acc, exp) => acc + exp.amount, 0);
@@ -155,6 +176,58 @@ export default async function Dashboard() {
           </div>
           
           <div className="grid gap-6">
+            <Card className="bg-zinc-950/40 border-white/5 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.6)] animate-in fade-in slide-in-from-right-8 duration-1000 delay-500 fill-mode-both">
+              <CardHeader className="pb-3 border-b border-white/5 bg-white/[0.01]">
+                <CardTitle className="text-zinc-200 text-base">Gastos por Categoria (Mês Atual)</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                {dashboardData.categories.length === 0 ? (
+                  <div className="text-sm text-zinc-500 text-center py-4">Nenhum dado</div>
+                ) : (
+                  dashboardData.categories.map((cat, i) => (
+                    <div key={i} className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-zinc-300 font-medium">{cat.name}</span>
+                        <span className="text-zinc-400">R$ {cat.value.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-emerald-500/80 rounded-full transition-all duration-1000 ease-out" 
+                          style={{ width: `${(cat.value / maxCategoryAmount) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-zinc-950/40 border-white/5 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-500 hover:shadow-[0_20px_40px_rgba(0,0,0,0.6)] animate-in fade-in slide-in-from-right-8 duration-1000 delay-600 fill-mode-both">
+              <CardHeader className="pb-3 border-b border-white/5 bg-white/[0.01]">
+                <CardTitle className="text-zinc-200 text-base">Faturas Futuras (Parcelamentos)</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                {dashboardData.future.length === 0 ? (
+                  <div className="text-sm text-zinc-500 text-center py-4">Nenhuma parcela futura</div>
+                ) : (
+                  dashboardData.future.map((fut, i) => (
+                    <div key={i} className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-zinc-300 font-medium">{fut.month}</span>
+                        <span className="text-rose-400 font-semibold">R$ {fut.amount.toFixed(2).replace('.', ',')}</span>
+                      </div>
+                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-rose-500/80 rounded-full transition-all duration-1000 ease-out" 
+                          style={{ width: `${(fut.amount / maxFutureAmount) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="bg-gradient-to-br from-emerald-950/40 to-teal-950/40 border-emerald-500/10 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative overflow-hidden group transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(16,185,129,0.15)] hover:border-emerald-500/30 animate-in fade-in slide-in-from-right-8 duration-1000 delay-700 fill-mode-both">
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="relative z-10">

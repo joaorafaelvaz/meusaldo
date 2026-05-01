@@ -144,6 +144,38 @@ def get_expenses(db: Session = Depends(get_db)):
         })
     return result
 
+@app.get("/api/dashboard")
+def get_dashboard_data(db: Session = Depends(get_db)):
+    now = datetime.now()
+    expenses = db.query(models.Expense).all()
+    
+    category_totals = {}
+    future_totals = {}
+    
+    for exp in expenses:
+        eff_date = exp.invoice_date if exp.invoice_date else exp.date
+        if not eff_date:
+            continue
+            
+        if eff_date.year == now.year and eff_date.month == now.month:
+            cat = exp.category or "Outros"
+            category_totals[cat] = category_totals.get(cat, 0) + exp.amount
+            
+        if eff_date.year > now.year or (eff_date.year == now.year and eff_date.month > now.month):
+            month_str = eff_date.strftime("%m/%Y")
+            future_totals[month_str] = future_totals.get(month_str, 0) + exp.amount
+
+    category_data = [{"name": k, "value": v} for k, v in category_totals.items()]
+    category_data.sort(key=lambda x: x["value"], reverse=True)
+    
+    future_data = [{"month": k, "amount": v} for k, v in future_totals.items()]
+    future_data.sort(key=lambda x: datetime.strptime(x["month"], "%m/%Y"))
+    
+    return {
+        "categories": category_data,
+        "future": future_data
+    }
+
 class ExpenseData(BaseModel):
     amount: Optional[float] = None
     category: Optional[str] = None
