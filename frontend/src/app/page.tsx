@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import SettingsCard from "@/components/SettingsCard"
 
 type Expense = {
   id: number
@@ -40,17 +41,19 @@ async function getExpenses(): Promise<Expense[]> {
 type DashboardData = {
   categories: { name: string, value: number }[]
   future: { month: string, amount: number }[]
+  personality: string
+  goals: any[]
 }
 
 async function getDashboardData(): Promise<DashboardData> {
   try {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8015/api"
     const res = await fetch(`${apiUrl}/dashboard`, { cache: "no-store" })
-    if (!res.ok) return { categories: [], future: [] }
+    if (!res.ok) return { categories: [], future: [], personality: "Sarcástico e Engraçado", goals: [] }
     return res.json()
   } catch (e) {
     console.error("Error fetching dashboard data:", e)
-    return { categories: [], future: [] }
+    return { categories: [], future: [], personality: "Sarcástico e Engraçado", goals: [] }
   }
 }
 
@@ -227,6 +230,11 @@ export default async function Dashboard() {
                 )}
               </CardContent>
             </Card>
+
+            <SettingsCard 
+              initialPersonality={dashboardData.personality || "Sarcástico e Engraçado"} 
+              initialGoals={dashboardData.goals || []} 
+            />
 
             <Card className="bg-gradient-to-br from-emerald-950/40 to-teal-950/40 border-emerald-500/10 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] relative overflow-hidden group transition-all duration-500 ease-out hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(16,185,129,0.15)] hover:border-emerald-500/30 animate-in fade-in slide-in-from-right-8 duration-1000 delay-700 fill-mode-both">
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />

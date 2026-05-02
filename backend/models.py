@@ -24,10 +24,12 @@ class Workspace(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    personality = Column(String, default="Sarcástico e Engraçado")
     
     members = relationship("WorkspaceMember", back_populates="workspace")
     expenses = relationship("Expense", back_populates="workspace")
     credit_cards = relationship("CreditCard", back_populates="workspace")
+    weekly_goals = relationship("WeeklyGoal", back_populates="workspace")
 
     def __str__(self):
         return self.name or f"Workspace #{self.id}"
@@ -41,6 +43,16 @@ class WorkspaceMember(Base):
     
     user = relationship("User", back_populates="workspaces")
     workspace = relationship("Workspace", back_populates="members")
+
+class WeeklyGoal(Base):
+    __tablename__ = "weekly_goals"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"))
+    category = Column(String, index=True)
+    amount = Column(Float, nullable=False)
+    
+    workspace = relationship("Workspace", back_populates="weekly_goals")
 
 class CreditCard(Base):
     __tablename__ = "credit_cards"

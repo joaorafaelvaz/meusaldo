@@ -149,8 +149,27 @@ def get_dashboard_data(db: Session = Depends(get_db)):
     now = datetime.now()
     expenses = db.query(models.Expense).all()
     
+    workspace = db.query(models.Workspace).first()
+    weekly_goals = db.query(models.WeeklyGoal).all() if workspace else []
+    
     category_totals = {}
     future_totals = {}
+    
+    start_of_week = now - timedelta(days=now.weekday())
+    start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+    goals_progress = []
+    
+    for goal in weekly_goals:
+        spent = sum(
+            exp.amount for exp in expenses 
+            if exp.category == goal.category and exp.date and exp.date >= start_of_week
+        )
+        goals_progress.append({
+            "id": goal.id,
+            "category": goal.category,
+            "amount": goal.amount,
+            "spent": spent
+        })
     
     for exp in expenses:
         eff_date = exp.invoice_date if exp.invoice_date else exp.date
@@ -173,8 +192,58 @@ def get_dashboard_data(db: Session = Depends(get_db)):
     
     return {
         "categories": category_data,
-        "future": future_data
+        "future": future_data,
+        "personality": workspace.personality if workspace else "Sarcástico e Engraçado",
+        "goals": goals_progress
     }
+
+class PersonalityUpdate(BaseModel):
+    personality: str
+
+class GoalCreate(BaseModel):
+    category: str
+    amount: float
+
+@app.get("/api/settings")
+def get_settings(db: Session = Depends(get_db)):
+    workspace = db.query(models.Workspace).first()
+    if not workspace:
+        return {"personality": "Sarcástico e Engraçado", "goals": []}
+    goals = db.query(models.WeeklyGoal).filter_by(workspace_id=workspace.id).all()
+    return {
+        "personality": workspace.personality,
+        "goals": [{"id": g.id, "category": g.category, "amount": g.amount} for g in goals]
+    }
+
+@app.put("/api/settings/personality")
+def update_personality(data: PersonalityUpdate, db: Session = Depends(get_db)):
+    workspace = db.query(models.Workspace).first()
+    if workspace:
+        workspace.personality = data.personality
+        db.commit()
+    return {"status": "success"}
+
+@app.post("/api/settings/goals")
+def create_goal(data: GoalCreate, db: Session = Depends(get_db)):
+    workspace = db.query(models.Workspace).first()
+    if not workspace:
+        return {"error": "No workspace found"}
+    goal = db.query(models.WeeklyGoal).filter_by(workspace_id=workspace.id, category=data.category).first()
+    if goal:
+        goal.amount = data.amount
+    else:
+        goal = models.WeeklyGoal(workspace_id=workspace.id, category=data.category, amount=data.amount)
+        db.add(goal)
+    db.commit()
+    return {"status": "success"}
+
+@app.delete("/api/settings/goals/{goal_id}")
+def delete_goal(goal_id: int, db: Session = Depends(get_db)):
+    goal = db.query(models.WeeklyGoal).filter_by(id=goal_id).first()
+    if goal:
+        db.delete(goal)
+        db.commit()
+    return {"status": "success"}
 
 class ExpenseData(BaseModel):
     amount: Optional[float] = None
@@ -231,17 +300,34 @@ def process_waha_message(payload: dict, db: Session):
         model_name = os.getenv("LLM_MODEL", "gpt-3.5-turbo") # Default to OpenAI for better JSON parsing out of the box
         api_base = os.getenv("LLM_API_BASE") # Useful for Ollama or local models
         
- #       system_prompt = (
- #           "You are a financial assistant for a Brazilian user. "
- #           "Extract the expense amount, category, and description from the user's message. "
- #           "If they are asking a question, answer it friendly, funny and sarcastic in Brazilian Portuguese. "
- #           "IMPORTANT: Always return a strict JSON matching this exact schema: "
- #           "{\"is_expense\": true, \"amount\": 50.0, \"category\": \"Food\", \"description\": \"Lunch\"}. "
- #           "Do NOT invent new keys like 'expense_amount', strictly use 'amount'."
- #       )
+        workspace = db.query(models.Workspace).first()
+        personality = workspace.personality if workspace and workspace.personality else "Sarcástico e Engraçado"
+        
+        weekly_goals_str = ""
+        if workspace:
+            goals = db.query(models.WeeklyGoal).filter_by(workspace_id=workspace.id).all()
+            if goals:
+                now = datetime.now()
+                start_of_week = now - timedelta(days=now.weekday())
+                start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+                
+                weekly_goals_str = "USER WEEKLY SPENDING GOALS (LIMITS):\n"
+                expenses_this_week = db.query(models.Expense).filter(
+                    models.Expense.workspace_id == workspace.id,
+                    models.Expense.date >= start_of_week
+                ).all()
+                
+                for g in goals:
+                    spent = sum(e.amount for e in expenses_this_week if e.category == g.category)
+                    weekly_goals_str += f"- {g.category}: Spent R$ {spent:.2f} out of R$ {g.amount:.2f} limit.\n"
+                
+                weekly_goals_str += "\nCRITICAL RULE: If the user's message logs a new expense that makes their total spent exceed the limit for that category, you MUST include a warning/scolding in your 'reply' field about them exceeding the goal, matching your personality!\n"
 
-        system_prompt = """
-        You are a highly efficient personal financial assistant. You have a sarcastic, humorous, and friendly personality. While your instructions are in English, you MUST ALWAYS generate the spoken response for the user in Brazilian Portuguese (PT-BR).
+        system_prompt = f"""
+        You are a highly efficient personal financial assistant. Your personality is: {personality}. 
+        While your instructions are in English, you MUST ALWAYS generate the spoken response for the user in Brazilian Portuguese (PT-BR).
+
+        {weekly_goals_str}
 
             YOUR MISSIONS:
             1. Record Expenses: Extract the amount, category, and description.
@@ -396,7 +482,7 @@ def process_waha_message(payload: dict, db: Session):
                         context_str += f"- {date_str} | {cat} | R$ {exp.amount:.2f} | {desc}\n"
                 
                 query_prompt = f"""
-                You are a highly efficient personal financial assistant with a sarcastic, humorous, and friendly personality.
+                You are a highly efficient personal financial assistant. Your personality is: {personality}.
                 The user asked a question about their finances: "{text}"
                 
                 Here is their actual spending data for the last 30 days:
