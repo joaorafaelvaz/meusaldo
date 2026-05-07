@@ -19,22 +19,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add personality column to workspaces
-    with op.batch_alter_table('workspaces') as batch_op:
-        batch_op.add_column(sa.Column('personality', sa.String(), server_default='Sarcástico e Engraçado'))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    
+    # Add personality column to workspaces if it doesn't exist
+    columns = [col['name'] for col in inspector.get_columns('workspaces')]
+    if 'personality' not in columns:
+        with op.batch_alter_table('workspaces') as batch_op:
+            batch_op.add_column(sa.Column('personality', sa.String(), server_default='Sarcástico e Engraçado'))
 
-    # Create weekly_goals table
-    op.create_table('weekly_goals',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('workspace_id', sa.Integer(), nullable=True),
-    sa.Column('category', sa.String(), nullable=True),
-    sa.Column('amount', sa.Float(), nullable=False),
-    sa.ForeignKeyConstraint(['workspace_id'], ['workspaces.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    with op.batch_alter_table('weekly_goals') as batch_op:
-        batch_op.create_index(batch_op.f('ix_weekly_goals_category'), ['category'], unique=False)
-        batch_op.create_index(batch_op.f('ix_weekly_goals_id'), ['id'], unique=False)
+    # Create weekly_goals table if it doesn't exist
+    if 'weekly_goals' not in inspector.get_table_names():
+        op.create_table('weekly_goals',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('workspace_id', sa.Integer(), nullable=True),
+        sa.Column('category', sa.String(), nullable=True),
+        sa.Column('amount', sa.Float(), nullable=False),
+        sa.ForeignKeyConstraint(['workspace_id'], ['workspaces.id'], ),
+        sa.PrimaryKeyConstraint('id')
+        )
+        with op.batch_alter_table('weekly_goals') as batch_op:
+            batch_op.create_index(batch_op.f('ix_weekly_goals_category'), ['category'], unique=False)
+            batch_op.create_index(batch_op.f('ix_weekly_goals_id'), ['id'], unique=False)
 
 
 def downgrade() -> None:
