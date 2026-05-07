@@ -9,6 +9,9 @@ export default function SettingsCard({ initialPersonality, initialGoals }: { ini
   const [newCat, setNewCat] = useState("")
   const [newAmount, setNewAmount] = useState("")
 
+  const [isSavingPersonality, setIsSavingPersonality] = useState(false)
+  const [savedPersonality, setSavedPersonality] = useState(false)
+
   const personalities = [
     "Sarcástico e Engraçado",
     "Sério e Profissional",
@@ -18,12 +21,20 @@ export default function SettingsCard({ initialPersonality, initialGoals }: { ini
 
   const updatePersonality = async (val: string) => {
     setPersonality(val)
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8015/api"
-    await fetch(`${apiUrl}/settings/personality`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personality: val })
-    })
+    setIsSavingPersonality(true)
+    setSavedPersonality(false)
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8015/api"
+      await fetch(`${apiUrl}/settings/personality`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personality: val })
+      })
+      setSavedPersonality(true)
+      setTimeout(() => setSavedPersonality(false), 2000)
+    } finally {
+      setIsSavingPersonality(false)
+    }
   }
 
   const addGoal = async () => {
@@ -59,11 +70,16 @@ export default function SettingsCard({ initialPersonality, initialGoals }: { ini
       </CardHeader>
       <CardContent className="pt-4 space-y-6">
         <div className="space-y-2">
-          <label className="text-sm text-zinc-400 font-medium">Personalidade do Assistente</label>
+          <div className="flex justify-between items-center">
+            <label className="text-sm text-zinc-400 font-medium">Personalidade do Assistente</label>
+            {isSavingPersonality && <span className="text-xs text-emerald-400 animate-pulse">Salvando...</span>}
+            {savedPersonality && <span className="text-xs text-emerald-500">Salvo!</span>}
+          </div>
           <select 
             className="w-full bg-black/40 border border-white/10 rounded-md p-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
             value={personality}
             onChange={(e) => updatePersonality(e.target.value)}
+            disabled={isSavingPersonality}
           >
             {personalities.map(p => <option key={p} value={p}>{p}</option>)}
           </select>

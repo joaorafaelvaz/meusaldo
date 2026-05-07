@@ -11,6 +11,7 @@ git pull origin main
 echo "📦 Building Frontend (Next.js)..."
 cd frontend
 npm install
+export NEXT_PUBLIC_API_URL="https://meusaldo.linkwise.digital/api"
 npm run build
 cd ..
 
