@@ -27,6 +27,7 @@ cd ..
 
 echo "🗄️ Running Database Migrations..."
 export PYTHONPATH=.
+export DATABASE_URL="sqlite:///./backend/meusaldo.db"
 alembic -c backend/alembic.ini upgrade head
 deactivate
 
