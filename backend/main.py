@@ -339,23 +339,23 @@ def process_waha_message(payload: dict, db: Session):
             You do not have direct access to a database. Your job is to parse the user's input and structure their intent.
             You MUST ALWAYS and EXCLUSIVELY return a valid JSON object matching this exact schema. Do not output any markdown formatting, conversational text, or explanations outside the JSON block.
 
-            {
+            {{
             "intent": "expense | query | reminder | clarification | chat",
             "reply": "Your spoken response in PT-BR with your sarcastic and friendly tone. Use this field to interact, confirm actions, or ask for missing information.",
-            "expense_data": {
+            "expense_data": {{
                 "amount": 0.0,
                 "category": "String in Portuguese (e.g., Alimentação, Transporte, Lazer) or null",
                 "description": "String or null",
                 "card_name": "String or null",
                 "cardholder": "String or null",
                 "installments": "Integer (default 1, e.g., 4 if 'em 4x')"
-            },
-            "bill_data": {
+            }},
+            "bill_data": {{
                 "due_date": "DD/MM/YYYY or null",
                 "payee": "String (name of the bill/recipient) or null",
                 "amount": 0.0
-            }
-            }
+            }}
+            }}
 
             DATA POPULATION RULES:
             - "intent":
@@ -365,7 +365,7 @@ def process_waha_message(payload: dict, db: Session):
             - Use "clarification" if the user attempts to log an expense or bill but misses the amount or description.
             - Use "chat" for general conversation unrelated to specific financial actions.
             - The "amount" fields must be strictly numeric (float). NEVER invent new keys like 'expense_amount', strictly use 'amount'. If no amount is given, use null.
-            - Time reference: Today is {CURRENT_DATE}. Translate relative terms like "tomorrow" or "next Friday" into the explicit DD/MM/YYYY format for "due_date".
+            - Time reference: Today is {datetime.now().strftime('%d/%m/%Y')}. Translate relative terms like "tomorrow" or "next Friday" into the explicit DD/MM/YYYY format for "due_date".
             
             - BANK NOTIFICATIONS (PUSH/SMS): 
               If the user pastes a bank notification like "Compra aprovada no LATAM PASS...":
@@ -378,13 +378,11 @@ def process_waha_message(payload: dict, db: Session):
               - "reply": Create a sarcastic and funny confirmation including the cardholder name, available limit, and number of installments.
         """
 
-        prompt_with_date = system_prompt.replace("{CURRENT_DATE}", datetime.now().strftime("%d/%m/%Y"))
-
         response = litellm.completion(
             model=model_name,
             api_base=api_base,
             messages=[
-                {"role": "system", "content": prompt_with_date},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
             ],
             response_format={"type": "json_object"} # Instruct to return JSON
