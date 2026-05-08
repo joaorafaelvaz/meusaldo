@@ -259,7 +259,7 @@ class BillData(BaseModel):
     amount: Optional[float] = None
 
 class ExpenseExtraction(BaseModel):
-    intent: str = Field(default="chat")
+    intent: str = Field(default="chat") # "expense", "query", "reminder", "clarification", "chat", "expense_update", "expense_delete"
     reply: str = Field(default="")
     expense_data: Optional[ExpenseData] = None
     bill_data: Optional[BillData] = None
@@ -275,6 +275,12 @@ def process_waha_message(payload: dict, db: Session):
         message_data = payload.get("payload", {})
         text = message_data.get("body", "")
         phone = message_data.get("from", "").split("@")[0]
+        
+        # WAHA specific IDs
+        waha_message_id = message_data.get("_data", {}).get("key", {}).get("id")
+        
+        reply_to = message_data.get("replyTo")
+        reply_to_id = reply_to.get("id") if reply_to and isinstance(reply_to, dict) else None
 
         if not text or message_data.get("fromMe"):
             return
@@ -323,11 +329,27 @@ def process_waha_message(payload: dict, db: Session):
                 
                 weekly_goals_str += "\nCRITICAL RULE: If the user's message logs a new expense that makes their total spent exceed the limit for that category, you MUST include a warning/scolding in your 'reply' field about them exceeding the goal, matching your personality!\n"
 
+        context_str_reply = ""
+        expenses_to_update = []
+        if reply_to_id:
+            expenses_to_update = db.query(models.Expense).filter(
+                (models.Expense.bot_message_id == reply_to_id) |
+                (models.Expense.waha_message_id == reply_to_id)
+            ).all()
+            if expenses_to_update:
+                context_str_reply = "\nThe user is replying to a previous message associated with the following recorded expenses:\n"
+                for exp in expenses_to_update:
+                    cat = exp.category or "Geral"
+                    desc = exp.description or "Sem descrição"
+                    context_str_reply += f"- ID: {exp.id} | R$ {exp.amount:.2f} | {cat} | {desc} | Cartão ID: {exp.credit_card_id} | Parcelas: {len(expenses_to_update)}\n"
+                context_str_reply += "\nBased on the user's reply, determine if they want to UPDATE or DELETE these expenses. If they are just chatting, use 'chat'. If updating, provide the fully corrected data in 'expense_data'.\n"
+
         system_prompt = f"""
         You are a highly efficient personal financial assistant. Your personality is: {personality}. 
         While your instructions are in English, you MUST ALWAYS generate the spoken response for the user in Brazilian Portuguese (PT-BR).
 
         {weekly_goals_str}
+        {context_str_reply}
 
             YOUR MISSIONS:
             1. Record Expenses: Extract the amount, category, and description.
@@ -340,7 +362,7 @@ def process_waha_message(payload: dict, db: Session):
             You MUST ALWAYS and EXCLUSIVELY return a valid JSON object matching this exact schema. Do not output any markdown formatting, conversational text, or explanations outside the JSON block.
 
             {{
-            "intent": "expense | query | reminder | clarification | chat",
+            "intent": "expense | query | reminder | clarification | chat | expense_update | expense_delete",
             "reply": "Your spoken response in PT-BR with your sarcastic and friendly tone. Use this field to interact, confirm actions, or ask for missing information.",
             "expense_data": {{
                 "amount": 0.0,
@@ -376,6 +398,12 @@ def process_waha_message(payload: dict, db: Session):
               - "cardholder": If names like "GIORGIA", "LUCIA", or "RENATO" appear, use them. Otherwise, default to "João".
               - "installments": Extract integer if the purchase was split (e.g., "em 4x", "parcelado em 3"). Default to 1.
               - "reply": Create a sarcastic and funny confirmation including the cardholder name, available limit, and number of installments.
+            
+            - UPDATING OR DELETING (reply context):
+              If the user replies to a message to correct it or delete it (e.g., "não foi no cartão A, foi no B", "apaga isso", "o valor é 50"):
+              - "intent": MUST be "expense_update" if correcting, or "expense_delete" if deleting.
+              - "expense_data": For updates, provide the NEW FULL data (combine their correction with the old context).
+              - "reply": Create a sarcastic confirmation that you updated or deleted the expense.
         """
 
         response = litellm.completion(
@@ -404,6 +432,7 @@ def process_waha_message(payload: dict, db: Session):
         ws_member = db.query(models.WorkspaceMember).filter(models.WorkspaceMember.user_id == user.id).first()
         
         if ext.intent == "expense" and ext.expense_data and ext.expense_data.amount is not None:
+            affected_expenses = []
             if ws_member:
                 desc = ext.expense_data.description or "Sem descrição"
                 if ext.expense_data.cardholder:
@@ -455,10 +484,85 @@ def process_waha_message(payload: dict, db: Session):
                         description=current_desc,
                         credit_card_id=base_card_id,
                         invoice_date=current_invoice_date,
-                        date=current_date
+                        date=current_date,
+                        waha_message_id=waha_message_id
                     )
                     db.add(expense)
+                    affected_expenses.append(expense)
                 
+                db.commit()
+
+        elif ext.intent == "expense_update" and ext.expense_data and reply_to_id:
+            affected_expenses = []
+            if ws_member and expenses_to_update:
+                # To simplify installments updates, we delete old ones and recreate
+                for exp in expenses_to_update:
+                    db.delete(exp)
+                db.commit()
+
+                desc = ext.expense_data.description or "Sem descrição"
+                if ext.expense_data.cardholder:
+                    desc += f" (Cartão de: {ext.expense_data.cardholder})"
+
+                base_card_id = None
+                base_invoice_date = None
+                purchase_date = expenses_to_update[0].date or datetime.now()
+                
+                if ext.expense_data.card_name:
+                    card_token = ext.expense_data.card_name.split()[0].lower()
+                    cards = db.query(models.CreditCard).filter(models.CreditCard.workspace_id == ws_member.workspace_id).all()
+                    for c in cards:
+                        if c.name.lower() in ext.expense_data.card_name.lower() or card_token in c.name.lower():
+                            base_card_id = c.id
+                            base_invoice_date = calculate_invoice_date(purchase_date, c.closing_day, c.due_day)
+                            break
+
+                installments = ext.expense_data.installments
+                if installments < 1:
+                    installments = 1
+
+                total_amount = ext.expense_data.amount
+                base_installment_amount = round(total_amount / installments, 2)
+                remainder = round(total_amount - (base_installment_amount * installments), 2)
+
+                for i in range(1, installments + 1):
+                    current_desc = desc
+                    if installments > 1:
+                        current_desc += f" (Parcela {i}/{installments})"
+                    
+                    current_amount = base_installment_amount
+                    if i == installments:
+                        current_amount = round(current_amount + remainder, 2)
+
+                    current_invoice_date = None
+                    if base_invoice_date:
+                        current_invoice_date = add_months(base_invoice_date, i - 1)
+                    
+                    current_date = purchase_date
+                    if not base_card_id and i > 1:
+                        current_date = add_months(purchase_date, i - 1)
+
+                    expense = models.Expense(
+                        workspace_id=ws_member.workspace_id,
+                        user_id=user.id,
+                        amount=current_amount,
+                        category=ext.expense_data.category or "Geral",
+                        description=current_desc,
+                        credit_card_id=base_card_id,
+                        invoice_date=current_invoice_date,
+                        date=current_date,
+                        waha_message_id=waha_message_id
+                    )
+                    db.add(expense)
+                    affected_expenses.append(expense)
+                
+                db.commit()
+
+        elif ext.intent == "expense_delete" and reply_to_id:
+            affected_expenses = []
+            if ws_member and expenses_to_update:
+                for exp in expenses_to_update:
+                    db.delete(exp)
                 db.commit()
 
         elif ext.intent == "query":
@@ -513,7 +617,7 @@ def process_waha_message(payload: dict, db: Session):
             headers["X-Api-Key"] = waha_api_key
             headers["Authorization"] = f"Bearer {waha_api_key}" # Adding both just in case it depends on the proxy
 
-        requests.post(
+        waha_resp = requests.post(
             f"{waha_url}/api/sendText", 
             json={
                 "session": waha_session,
@@ -522,6 +626,16 @@ def process_waha_message(payload: dict, db: Session):
             },
             headers=headers
         )
+        
+        # Save bot_message_id to affected expenses
+        if waha_resp.status_code in (200, 201) and 'affected_expenses' in locals() and affected_expenses:
+            waha_resp_data = waha_resp.json()
+            bot_msg_id = waha_resp_data.get("id")
+            if bot_msg_id:
+                for exp in affected_expenses:
+                    exp.bot_message_id = bot_msg_id
+                db.commit()
+
         print(f"Reply to {phone}: {reply_text}")
 
     except Exception as e:

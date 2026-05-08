@@ -83,6 +83,9 @@ class Expense(Base):
     credit_card_id = Column(Integer, ForeignKey("credit_cards.id"), nullable=True)
     invoice_date = Column(DateTime(timezone=True), nullable=True)
     
+    waha_message_id = Column(String, nullable=True, index=True)
+    bot_message_id = Column(String, nullable=True, index=True)
+    
     workspace = relationship("Workspace", back_populates="expenses")
     user = relationship("User", back_populates="expenses")
     credit_card = relationship("CreditCard", back_populates="expenses")
